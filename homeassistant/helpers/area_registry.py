@@ -118,48 +118,58 @@ class AreaRegistryStore(Store[AreasRegistryStoreData]):
         old_data: dict[str, list[dict[str, Any]]],
     ) -> AreasRegistryStoreData:
         """Migrate to the new version."""
-        if old_major_version < 2:
-            if old_minor_version < 2:
-                # Version 1.2 implements migration and freezes the available keys
-                for area in old_data["areas"]:
-                    # Populate keys which were introduced before version 1.2
-                    area.setdefault("picture", None)
-
-            if old_minor_version < 3:
-                # Version 1.3 adds aliases
-                for area in old_data["areas"]:
-                    area["aliases"] = []
-
-            if old_minor_version < 4:
-                # Version 1.4 adds icon
-                for area in old_data["areas"]:
-                    area["icon"] = None
-
-            if old_minor_version < 5:
-                # Version 1.5 adds floor_id
-                for area in old_data["areas"]:
-                    area["floor_id"] = None
-
-            if old_minor_version < 6:
-                # Version 1.6 adds labels
-                for area in old_data["areas"]:
-                    area["labels"] = []
-
-            if old_minor_version < 7:
-                # Version 1.7 adds created_at and modified_at
-                created_at = utc_from_timestamp(0).isoformat()
-                for area in old_data["areas"]:
-                    area["created_at"] = area["modified_at"] = created_at
-
-            if old_minor_version < 8:
-                # Version 1.8 adds humidity_entity_id and temperature_entity_id
-                for area in old_data["areas"]:
-                    area["humidity_entity_id"] = None
-                    area["temperature_entity_id"] = None
 
         if old_major_version > 1:
             raise NotImplementedError
+
+        migrations = [
+            (2, self._migrate_picture),
+            (3, self._migrate_aliases),
+            (4, self._migrate_icon),
+            (5, self._migrate_floor_id),
+            (6, self._migrate_labels),
+            (7, self._migrate_created_modified),
+            (8, self._migrate_humidity_temperature),
+        ]
+
+        for version, migration in migrations:
+            if old_minor_version < version:
+                for area in old_data["areas"]:
+                    migration(area)
+
         return old_data  # type: ignore[return-value]
+
+    # --- Individual migration helpers ---
+
+    @staticmethod
+    def _migrate_picture(area: dict[str, Any]) -> None:
+        area.setdefault("picture", None)
+
+    @staticmethod
+    def _migrate_aliases(area: dict[str, Any]) -> None:
+        area["aliases"] = []
+
+    @staticmethod
+    def _migrate_icon(area: dict[str, Any]) -> None:
+        area["icon"] = None
+
+    @staticmethod
+    def _migrate_floor_id(area: dict[str, Any]) -> None:
+        area["floor_id"] = None
+
+    @staticmethod
+    def _migrate_labels(area: dict[str, Any]) -> None:
+        area["labels"] = []
+
+    @staticmethod
+    def _migrate_created_modified(area: dict[str, Any]) -> None:
+        created_at = utc_from_timestamp(0).isoformat()
+        area["created_at"] = area["modified_at"] = created_at
+
+    @staticmethod
+    def _migrate_humidity_temperature(area: dict[str, Any]) -> None:
+        area["humidity_entity_id"] = None
+        area["temperature_entity_id"] = None
 
 
 class AreaRegistryItems(NormalizedNameBaseRegistryItems[AreaEntry]):
